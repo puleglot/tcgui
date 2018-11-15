@@ -110,17 +110,17 @@ def parse_rule(splitted_rule):
                 if splitted_rule[i+1] in dev_list:
                     rule['name'] = splitted_rule[i+1]
         elif argument == 'rate':
-            rule['rate'] = splitted_rule[i + 1].split('Mbit')[0]
+            rule['rate'] = splitted_rule[i + 1]
         elif argument == 'delay':
             rule['delay'] = splitted_rule[i + 1]
         elif argument == 'loss':
-            rule['loss'] = splitted_rule[i + 1]
+            rule['loss'] = splitted_rule[i + 1].split('%')[0]
         elif argument == 'duplicate':
-            rule['duplicate'] = splitted_rule[i + 1]
+            rule['duplicate'] = splitted_rule[i + 1].split('%')[0]
         elif argument == 'reorder':
-            rule['reorder'] = splitted_rule[i + 1]
+            rule['reorder'] = splitted_rule[i + 1].split('%')[0]
         elif argument == 'corrupt':
-            rule['corrupt'] = splitted_rule[i + 1]
+            rule['corrupt'] = splitted_rule[i + 1].split('%')[0]
         i += 1
     return rule
 

@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>DemoSetup</title>
+    <title>TC web GUI</title>
 </head>
 <body>
 <h4>Available Interfaces</h4>
 <ul>
     {% for rule in rules %}
         <li>
-            {{ rule['name'] }}
+            <a href="/munin/localhost/localhost/if_{{ rule['name'] }}.html">{{ rule['name'] }}</a>
             <form method="POST" action="{{ url_for('new_rule', interface=rule['name']) }}">
                 <table border="1">
                     <tr>
@@ -20,32 +20,32 @@
                     <tr>
                         <td>Rate:</td>
                         <td>{{ rule['rate'] }}</td>
-                        <td><input type="text" name="Rate" size="5"> in Mbit</td>
+                        <td><input type="text" name="Rate" size="5"{% if rule['rate'] is not none %} value="{{ rule['rate'] }}"{% endif %}> suffix (kbit, mbit, etc) is required!</td>
                     </tr>
                     <tr>
                         <td>Delay:</td>
                         <td>{{ rule['delay'] }}</td>
-                        <td><input type="text" name="Delay" size="5"> in ms</td>
+                        <td><input type="text" name="Delay" size="5"{% if rule['delay'] is not none %} value="{{ rule['delay'] }}"{% endif %}> suffix (s, ms, etc) is required!</td>
                     </tr>
                     <tr>
                         <td>Loss:</td>
                         <td>{{ rule['loss'] }}</td>
-                        <td><input type="text" name="Loss" size="5"> in %</td>
+                        <td><input type="text" name="Loss" size="5"{% if rule['loss'] is not none %} value="{{ rule['loss'] }}"{% endif %}> in %</td>
                     </tr>
                     <tr>
                         <td>Duplicate:</td>
                         <td>{{ rule['duplicate'] }}</td>
-                        <td><input type="text" name="Duplicate" size="5"> in %</td>
+                        <td><input type="text" name="Duplicate" size="5"{% if rule['duplicate'] is not none %} value="{{ rule['duplicate'] }}"{% endif %}> in %</td>
                     </tr>
                     <tr>
                         <td>Reorder:</td>
                         <td>{{ rule['reorder'] }}</td>
-                        <td><input type="text" name="Reorder" size="5"> in %</td>
+                        <td><input type="text" name="Reorder" size="5"{% if rule['reorder'] is not none %} value="{{ rule['reorder'] }}"{% endif %}> in %</td>
                     </tr>
                     <tr>
                         <td>Corrupt</td>
                         <td>{{ rule['corrupt'] }}</td>
-                        <td><input type="text" name="Corrupt" size="5"> in %</td>
+                        <td><input type="text" name="Corrupt" size="5"{% if rule['corrupt'] is not none %} value="{{ rule['corrupt'] }}"{% endif %}> in %</td>
                     </tr>
                 </table>
                 <input type="submit" value="Apply Rules">
