@@ -1,10 +1,13 @@
-import subprocess, os, re, argparse
+import subprocess, os, re, argparse, sys
+import sqlite3
 from flask import Flask, render_template, redirect, request, url_for
 
 
 app = Flask(__name__)
 pattern = None
 dev_list = None
+dbconn = None
+dbcur = None
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='TC web GUI')
@@ -18,6 +21,8 @@ def parse_arguments():
                         help='A regex to match interfaces')
     parser.add_argument('--debug',action='store_true',
                         help='Run Flask in debug mode')
+    parser.add_argument('--db', type=str, required=False,
+                        help='Path to database')
     return parser.parse_args()
 
 
@@ -29,37 +34,20 @@ def main():
 
 @app.route('/new_rule/<interface>', methods=['POST'])
 def new_rule(interface):
-    delay = request.form['Delay']
-    loss = request.form['Loss']
-    duplicate = request.form['Duplicate']
-    reorder = request.form['Reorder']
-    corrupt = request.form['Corrupt']
-    rate = request.form['Rate']
+    rule = {
+        'rate': request.form['Rate'],
+        'delay': request.form['Delay'],
+        'loss': request.form['Loss'],
+        'duplicate': request.form['Duplicate'],
+        'reorder': request.form['Reorder'],
+        'corrupt': request.form['Corrupt'],
+    }
 
-    # remove old setup
-    command = 'tc qdisc del dev %s root netem' % interface
-    command = command.split(' ')
-    proc = subprocess.Popen(command)
-    proc.wait()
+    rule_apply(interface, rule)
 
-    # apply new setup
-    command = 'tc qdisc add dev %s root netem' % interface
-    if rate != '':
-        command += ' rate %smbit' % rate
-    if delay != '':
-        command += ' delay %sms' % delay
-    if loss != '':
-        command += ' loss %s%%' % loss
-    if duplicate != '':
-        command += ' duplicate %s%%' % duplicate
-    if reorder != '':
-        command += ' reorder %s%%' % reorder
-    if corrupt != '':
-        command += ' corrupt %s%%' % corrupt
-    print(command)
-    command = command.split(' ')
-    proc = subprocess.Popen(command)
-    proc.wait()
+    if dbcur:
+        rule_store(interface, rule)
+
     return redirect(url_for('main'))
 
 
@@ -67,9 +55,15 @@ def new_rule(interface):
 def remove_rule(interface):
     # remove old setup
     command = 'tc qdisc del dev %s root netem' % interface
+    print(command)
     command = command.split(' ')
     proc = subprocess.Popen(command)
     proc.wait()
+
+    if dbcur:
+        dbcur.execute('DELETE FROM rules WHERE interface = ?', (interface,))
+        dbconn.commit()
+
     return redirect(url_for('main'))
 
 def get_active_rules():
@@ -88,13 +82,16 @@ def get_active_rules():
 
 
 def parse_rule(splitted_rule):
-    rule = {'name':      None,
-            'rate':      None,
-            'delay':     None,
-            'loss':      None,
-            'duplicate': None,
-            'reorder':   None,
-            'corrupt':   None}
+    rule = {
+        'name': None,
+        'rate': None,
+        'delay': None,
+        'loss': None,
+        'duplicate': None,
+        'reorder': None,
+        'corrupt': None,
+    }
+
     i = 0
     for argument in splitted_rule:
         if argument == 'dev':
@@ -124,6 +121,50 @@ def parse_rule(splitted_rule):
         i += 1
     return rule
 
+def rule_apply(interface, rule):
+    # remove old setup
+    command = 'tc qdisc del dev %s root netem' % interface
+    command = command.split(' ')
+    proc = subprocess.Popen(command)
+    proc.wait()
+
+    # apply new setup
+    command = 'tc qdisc add dev %s root netem' % interface
+    if rule['rate'] != '':
+        command += ' rate %s' % rule['rate']
+    if rule['delay'] != '':
+        command += ' delay %s' % rule['delay']
+    if rule['loss'] != '':
+        command += ' loss %s%%' % rule['loss']
+    if rule['duplicate'] != '':
+        command += ' duplicate %s%%' % rule['duplicate']
+    if rule['reorder'] != '':
+        command += ' reorder %s%%' % rule['reorder']
+    if rule['corrupt'] != '':
+        command += ' corrupt %s%%' % rule['corrupt']
+    print(command)
+    command = command.split(' ')
+    proc = subprocess.Popen(command)
+    proc.wait()
+
+def rule_store(interface, rule):
+    dbcur.execute('INSERT OR REPLACE INTO rules '
+                  '(interface, rate, delay, loss, duplicate, reorder, corrupt) '
+                  'VALUES (?, ?, ?, ?, ?, ?, ?)',
+                  (interface, rule['rate'], rule['delay'], rule['loss'], rule['duplicate'], rule['reorder'], rule['corrupt'])
+    )
+    dbconn.commit()
+
+def rules_restore():
+    dbcur.execute('SELECT interface FROM rules')
+    rows = dbcur.fetchall()
+    for row in rows:
+        interface = row[0]
+        dbcur.execute('SELECT rate, delay, loss, duplicate, reorder, corrupt FROM rules WHERE interface = ?', (interface,))
+        row = dbcur.fetchone()
+        rule = dict(zip(['rate', 'delay', 'loss', 'duplicate', 'reorder', 'corrupt'], row))
+        rule_apply(interface, rule)
+
 
 if __name__ == "__main__":
     #if os.geteuid() != 0:
@@ -140,5 +181,16 @@ if __name__ == "__main__":
         app_args['port'] = args.port
     if not args.debug:
         app_args['debug'] = False
+
+    if args.db:
+        try:
+            dbconn = sqlite3.connect(args.db, timeout=20.0)
+            dbcur = dbconn.cursor()
+        except:
+            print('Database cannot be opened')
+            sys.exit(3)
+
+        rules_restore()
+
     app.debug = True
     app.run(**app_args)
